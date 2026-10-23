@@ -1,0 +1,52 @@
+WorkBuddy 启动动画 · 使用说明
+==============================
+
+一、这是什么
+    双击「启动 WorkBuddy.bat」：先全屏播启动动画，动画播完再无缝进入 WorkBuddy。
+    顺序永远固定：先动画，后程序。程序启动多快都藏在动画后面。
+
+二、换电脑 / 拷给别人
+    整个文件夹直接复制过去就能用，不用改任何路径。启动器会自动找：
+
+      浏览器    → Edge / Chrome（注册表 App Paths + 常见安装目录，优先 Edge）
+      WorkBuddy → 运行中的进程 → App Paths → 卸载表 → 开始菜单/桌面快捷方式
+                  → 常见安装目录 → 按盘符浅扫（深度 3）
+                  → 仍然找不到就弹窗手动选一次，并写进 config.ini
+
+    在新机器上不放心，先跑自检（只打印结果，不播动画）：
+      双击 _detect.bat
+    它会告诉你「浏览器」和「WorkBuddy」各自被解析成了哪个路径。
+
+    非要手动指定，就编辑 config.ini：
+      AppPath=D:\你的路径\WorkBuddy.exe
+      BrowserPath=C:\Program Files\Google\Chrome\Application\chrome.exe
+
+三、文件说明
+    index.html              动画页面（双击可单看动画，F11 全屏）
+    assets\miku-splash.mp4  动画视频
+    assets\poster.jpg       视频加载前的静态帧
+    launcher.ps1            启动器主逻辑：探测 + 时序 + 收场
+    config.ini              可选手动配置（留空即自动识别）
+    启动 WorkBuddy.bat      双击入口
+    _detect.bat             自检
+
+四、换动画
+    覆盖 assets\miku-splash.mp4 与 assets\poster.jpg（文件名不变），重新双击生效。
+
+五、调时序
+    launcher.ps1  -AppStartDelayMs  动画开始后多久才启动程序（默认 2600ms）
+                  -DeepScanMs       深扫时间预算（默认 4500ms）
+    index.html    MIN_DURATION / FINISH_LEAD  动画总时长（默认 5200 / 5400，约 6.7s）
+    播放中按 ESC 可跳过动画。
+
+六、开机自启
+    右键「启动 WorkBuddy.bat」→ 发送到 → 桌面快捷方式，
+    再把快捷方式丢进 Win+R 输入 shell:startup 打开的启动文件夹。
+
+七、已知行为
+    - 动画窗口强制置顶，后台启动的程序不会抢镜头
+    - WorkBuddy 已经开着时不会重启，播完直接把窗口提到最前
+    - 动画用独立浏览器配置（%TEMP%\WB_Splash_Profile），不碰你日常浏览器
+
+八、系统要求
+    Windows 10 / 11，有 Edge 或 Chrome 任一即可，不需要 Python。

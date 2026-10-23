@@ -1,0 +1,7 @@
+# 纯 Windows 项目，禁用行尾转换，保证 checkout 后字节完全一致
+# launcher.ps1 依赖 UTF-8 BOM，不能被改写
+* -text
+
+*.png binary
+*.jpg binary
+*.mp4 binary

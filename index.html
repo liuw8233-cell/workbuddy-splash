@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WorkBuddy · 启动中</title>
+<style>
+  :root{
+    --miku:#39C5BB;
+    --miku-lt:#8BF3EA;
+    --ink:#03070b;
+    --txt:#E9F7F5;
+    --dim:rgba(233,247,245,.52);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#000;overflow:hidden}
+  body{
+    font-family:"HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    color:var(--txt);
+    -webkit-font-smoothing:antialiased;
+    cursor:default;
+  }
+
+  /* ── 舞台 ───────────────────────────── */
+  #stage{
+    position:fixed;inset:0;
+    background:var(--ink);
+    transition:opacity .9s cubic-bezier(.4,0,.2,1),filter .9s ease;
+  }
+  #stage.gone{opacity:0;pointer-events:none;filter:blur(6px)}
+
+  /* 视频层：放大约 9% 并向左上偏移，把源片左上角的生成水印整体裁出画面 */
+  #bg{
+    position:absolute;
+    left:-4.5%;top:-3.5%;
+    width:109%;height:107%;
+    object-fit:cover;
+    opacity:0;
+    transform:scale(1.06);
+    transform-origin:center;
+    transition:opacity 1.7s cubic-bezier(.22,.61,.36,1),transform 11s cubic-bezier(.14,.86,.3,1);
+    filter:saturate(1.06) contrast(1.02);
+  }
+  #bg.on{opacity:1;transform:scale(1)}
+
+  /* 左侧压暗，保证文字可读 */
+  #scrim{
+    position:absolute;inset:0;pointer-events:none;
+    background:
+      linear-gradient(90deg,rgba(3,7,11,.95) 0%,rgba(3,7,11,.90) 22%,rgba(3,7,11,.55) 46%,rgba(3,7,11,.06) 68%,transparent 80%),
+      radial-gradient(115% 85% at 76% 52%,rgba(57,197,187,.10),transparent 62%);
+  }
+  /* 底部与顶部渐变，收边 */
+  #scrim2{
+    position:absolute;inset:0;pointer-events:none;
+    background:
+      linear-gradient(180deg,rgba(3,7,11,.55),transparent 22%),
+      linear-gradient(0deg,rgba(3,7,11,.70),transparent 26%);
+  }
+  /* 细扫描线质感 */
+  #grain{
+    position:absolute;inset:0;pointer-events:none;opacity:.16;
+    background:repeating-linear-gradient(0deg,rgba(255,255,255,.055) 0 1px,transparent 1px 3px);
+    mix-blend-mode:overlay;
+  }
+
+  /* ── 内容 ───────────────────────────── */
+  #ui{
+    position:absolute;left:min(8.5vw,132px);top:50%;
+    transform:translateY(-50%);
+    width:min(46vw,560px);
+    z-index:5;
+  }
+
+  .logo{
+    width:58px;height:58px;margin-bottom:30px;
+    opacity:0;transform:translateY(14px) scale(.9);
+    filter:drop-shadow(0 0 14px rgba(57,197,187,.55));
+    transition:opacity .9s cubic-bezier(.2,.7,.3,1),transform .9s cubic-bezier(.2,.7,.3,1);
+  }
+  .logo.on{opacity:1;transform:none}
+  .logo svg{width:100%;height:100%;display:block}
+
+  h1{
+    font-size:clamp(38px,5.1vw,72px);
+    font-weight:600;letter-spacing:.02em;line-height:1.02;
+    opacity:0;transform:translateY(20px);
+    transition:opacity 1s cubic-bezier(.2,.7,.3,1),transform 1s cubic-bezier(.2,.7,.3,1);
+  }
+  h1.on{opacity:1;transform:none}
+  h1 .accent{
+    background:linear-gradient(96deg,var(--miku-lt),var(--miku) 55%,#2b9d95);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+
+  .sub{
+    margin-top:16px;font-size:clamp(13px,1.15vw,16px);
+    color:var(--dim);letter-spacing:.1em;
+    opacity:0;transform:translateY(14px);
+    transition:opacity 1s cubic-bezier(.2,.7,.3,1) .05s,transform 1s cubic-bezier(.2,.7,.3,1) .05s;
+  }
+  .sub.on{opacity:1;transform:none}
+
+  .tag{
+    display:inline-flex;align-items:center;gap:8px;
+    margin-top:26px;padding:6px 12px;
+    font-size:10.5px;letter-spacing:.22em;color:rgba(139,243,234,.82);
+    border:1px solid rgba(57,197,187,.26);border-radius:999px;
+    background:rgba(57,197,187,.055);
+    opacity:0;transition:opacity 1s ease .1s;
+  }
+  .tag.on{opacity:1}
+  .dot{
+    width:5px;height:5px;border-radius:50%;background:var(--miku);
+    box-shadow:0 0 8px var(--miku);
+    animation:pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
+
+  /* 进度 */
+  .prog{margin-top:52px;opacity:0;transition:opacity .8s ease .12s}
+  .prog.on{opacity:1}
+
+  .track{
+    position:relative;height:2px;width:100%;
+    background:rgba(233,247,245,.13);border-radius:2px;overflow:visible;
+  }
+  .fill{
+    position:absolute;left:0;top:0;height:100%;width:0%;
+    border-radius:2px;
+    background:linear-gradient(90deg,rgba(57,197,187,.35),var(--miku) 55%,var(--miku-lt));
+    box-shadow:0 0 10px rgba(57,197,187,.85),0 0 26px rgba(57,197,187,.45);
+    transition:width .12s linear;
+  }
+  .spark{
+    position:absolute;top:50%;left:0;width:34px;height:2px;
+    transform:translate(-100%,-50%);
+    background:linear-gradient(90deg,transparent,rgba(139,243,234,.95));
+    filter:blur(.4px);pointer-events:none;
+  }
+
+  .meta{
+    display:flex;justify-content:space-between;align-items:baseline;
+    margin-top:15px;font-size:11.5px;letter-spacing:.1em;
+  }
+  #stat{color:var(--dim);transition:color .5s ease}
+  #stat.ready{color:var(--miku-lt)}
+  .pct{
+    font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,"SF Mono",Consolas,monospace;
+    color:rgba(233,247,245,.78);font-size:12px;letter-spacing:.06em;
+  }
+
+  /* 细装饰线 */
+  .rule{
+    margin-top:34px;height:1px;width:0;
+    background:linear-gradient(90deg,rgba(57,197,187,.5),rgba(57,197,187,0));
+    transition:width 1.4s cubic-bezier(.2,.7,.3,1) .2s;
+  }
+  .rule.on{width:100%}
+
+  /* ── 角标 ───────────────────────────── */
+  .corner{
+    position:absolute;z-index:6;font-size:10px;letter-spacing:.2em;
+    color:rgba(233,247,245,.30);
+    display:flex;align-items:center;gap:10px;
+  }
+  .corner.bl{left:min(8.5vw,132px);bottom:38px}
+  .corner.br{right:min(4.5vw,60px);bottom:38px}
+
+  .kbd{
+    padding:2px 6px;border:1px solid rgba(233,247,245,.18);border-radius:4px;
+    font-family:ui-monospace,Consolas,monospace;font-size:9.5px;letter-spacing:.08em;
+  }
+
+  #fs{
+    position:absolute;top:34px;right:min(4.5vw,60px);z-index:7;
+    width:30px;height:30px;display:grid;place-items:center;
+    border:1px solid rgba(233,247,245,.14);border-radius:7px;
+    background:rgba(255,255,255,.03);color:rgba(233,247,245,.55);
+    cursor:pointer;opacity:0;transition:opacity .6s ease,color .3s,border-color .3s,background .3s;
+  }
+  #fs.on{opacity:1}
+  #fs:hover{color:var(--miku-lt);border-color:rgba(57,197,187,.5);background:rgba(57,197,187,.08)}
+
+  /* ── 重播 ───────────────────────────── */
+  #replay{
+    position:absolute;inset:0;z-index:9;
+    display:grid;place-items:center;
+    background:radial-gradient(60% 60% at 50% 50%,rgba(6,16,20,.9),#03070b 78%);
+    opacity:0;pointer-events:none;transition:opacity .8s ease;
+  }
+  #replay.on{opacity:1;pointer-events:auto}
+  #replayBtn{
+    padding:15px 34px;
+    font-size:11.5px;letter-spacing:.28em;color:var(--miku-lt);
+    border:1px solid rgba(57,197,187,.38);border-radius:999px;
+    background:rgba(57,197,187,.06);
+    cursor:pointer;
+    transition:transform .35s cubic-bezier(.2,.7,.3,1),box-shadow .35s,background .35s,border-color .35s;
+    box-shadow:0 0 0 rgba(57,197,187,0);
+  }
+  #replayBtn:hover{
+    transform:translateY(-2px);
+    background:rgba(57,197,187,.13);
+    border-color:rgba(57,197,187,.72);
+    box-shadow:0 10px 40px rgba(57,197,187,.22);
+  }
+
+  /* 启动器模式：播完后黑场待命，等主窗口出现 */
+  #waitnote{
+    display:none;align-items:center;gap:10px;
+    font-size:11.5px;letter-spacing:.24em;
+    color:rgba(233,247,245,.42);
+  }
+
+  @media (max-width:760px){
+    #ui{width:76vw;left:9vw}
+    #scrim{background:linear-gradient(180deg,rgba(3,7,11,.92) 0%,rgba(3,7,11,.72) 45%,rgba(3,7,11,.55) 100%)}
+    .corner.bl{left:9vw}
+    .prog{margin-top:38px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    #bg{transition:none;transform:none}
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <video id="bg" poster="assets/poster.jpg" muted playsinline loop preload="auto" src="assets/miku-splash.mp4"></video>
+  <div id="scrim"></div>
+  <div id="scrim2"></div>
+  <div id="grain"></div>
+
+  <div id="ui">
+    <div class="logo" id="logo">
+      <svg viewBox="0 0 48 48" fill="none">
+        <defs>
+          <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#8BF3EA"/>
+            <stop offset="1" stop-color="#39C5BB"/>
+          </linearGradient>
+        </defs>
+        <path d="M24 2.9 42.2 13.4v21.2L24 45.1 5.8 34.6V13.4z"
+              stroke="url(#lg)" stroke-width="1.5" stroke-linejoin="round" opacity=".95"/>
+        <path d="M24 8.6 37 16.1v15.8L24 39.4 11 31.9V16.1z"
+              stroke="url(#lg)" stroke-width="1" stroke-linejoin="round" opacity=".28"/>
+        <g stroke="url(#lg)" stroke-width="2.6" stroke-linecap="round">
+          <line x1="16.6" y1="20.4" x2="16.6" y2="27.6"/>
+          <line x1="24" y1="15.2" x2="24" y2="32.8"/>
+          <line x1="31.4" y1="18.8" x2="31.4" y2="29.2"/>
+        </g>
+      </svg>
+    </div>
+
+    <h1 id="title">Work<span class="accent">Buddy</span></h1>
+    <div class="sub" id="sub">正在唤醒你的 AI 工作台</div>
+
+    <div class="tag" id="tag"><span class="dot"></span>INITIALIZING · MIKU EDITION</div>
+
+    <div class="prog" id="prog">
+      <div class="track">
+        <div class="fill" id="fill"></div>
+        <div class="spark" id="spark"></div>
+      </div>
+      <div class="meta">
+        <span id="stat">初始化运行时…</span>
+        <span class="pct" id="pct">0%</span>
+      </div>
+      <div class="rule" id="rule"></div>
+    </div>
+  </div>
+
+  <div id="fs" title="全屏">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+    </svg>
+  </div>
+
+  <div class="corner bl">WORKBUDDY OS · v1.0</div>
+  <div class="corner br"><span class="kbd">ESC</span> 跳过</div>
+</div>
+
+<div id="replay">
+  <button id="replayBtn">重新播放</button>
+  <div id="waitnote"><span class="dot"></span>正在进入 WorkBuddy…</div>
+</div>
+
+<script>
+(function(){
+  const stage   = document.getElementById('stage');
+  const video   = document.getElementById('bg');
+  const logo    = document.getElementById('logo');
+  const title   = document.getElementById('title');
+  const sub     = document.getElementById('sub');
+  const tag     = document.getElementById('tag');
+  const prog    = document.getElementById('prog');
+  const rule    = document.getElementById('rule');
+  const fill    = document.getElementById('fill');
+  const spark   = document.getElementById('spark');
+  const stat    = document.getElementById('stat');
+  const pctEl   = document.getElementById('pct');
+  const fsBtn   = document.getElementById('fs');
+  const replay  = document.getElementById('replay');
+  const replayBtn = document.getElementById('replayBtn');
+
+  const STEPS = [
+    [0.00, '初始化运行时…'],
+    [0.24, '加载技能库…'],
+    [0.48, '挂载工作空间…'],
+    [0.70, '同步会话记忆…'],
+    [0.88, '构建渲染管线…']
+  ];
+
+  /* launcher=1 时为启动器模式：播完黑场待命，由外部进程决定何时关窗 */
+  const LAUNCHER = new URLSearchParams(location.search).has('launcher');
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const MIN_DURATION = reduced ? 700 : 5200;   // 进度条基础时长
+  const FINISH_LEAD  = reduced ? 200 : 5400;   // 之后开始收尾的时间点
+
+  let shown = 0, raf = 0, startAt = 0, finished = false, lastStat = '';
+
+  /* ── 视频真实缓冲进度 ── */
+  function videoProgress(){
+    if(video.readyState >= 4) return 1;
+    try{
+      if(video.buffered && video.buffered.length && video.duration){
+        return Math.min(1, video.buffered.end(video.buffered.length - 1) / video.duration);
+      }
+    }catch(e){}
+    return video.readyState / 4;
+  }
+
+  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+
+  function paint(p){
+    const w = (p * 100).toFixed(2) + '%';
+    fill.style.width = w;
+    spark.style.left = w;
+    pctEl.textContent = Math.round(p * 100) + '%';
+
+    let label = STEPS[0][1];
+    for(const [at, txt] of STEPS){ if(p >= at) label = txt; }
+    if(p >= 0.999) label = '准备就绪';
+    if(label !== lastStat){
+      lastStat = label;
+      stat.textContent = label;
+      if(!reduced && stat.animate){
+        stat.animate(
+          [{opacity:0, transform:'translateY(3px)'}, {opacity:1, transform:'none'}],
+          {duration:340, easing:'cubic-bezier(.2,.7,.3,1)'}
+        );
+      }
+    }
+  }
+
+  function tick(now){
+    if(finished) return;
+    if(!startAt) startAt = now;
+    const el = now - startAt;
+
+    // 时间驱动的虚拟进度（最多推到 94%）
+    let target = easeOutCubic(Math.min(el / MIN_DURATION, 1)) * 0.94;
+
+    // 视频就绪后冲线
+    if(el > FINISH_LEAD && videoProgress() >= 1){
+      const fp = Math.min((el - FINISH_LEAD) / 620, 1);
+      target = 0.94 + 0.06 * easeOutCubic(fp);
+    }
+    // 兜底：无论视频状态如何，7.2s 后收尾
+    if(el > 7200 && !reduced){
+      target = Math.max(target, 0.94 + 0.06 * Math.min((el - 7200) / 500, 1));
+    }
+
+    // 单调推进 + 一点真实加载的抖动感
+    const jitter = (Math.random() - 0.5) * 0.004;
+    shown = Math.max(shown, Math.min(1, target + jitter));
+    paint(shown);
+
+    if(shown >= 0.9995){ finish(); return; }
+    raf = requestAnimationFrame(tick);
+  }
+
+  function statSmooth(node, txt){
+    node.style.transition = 'opacity .18s ease';
+    node.style.opacity = 0;
+    setTimeout(() => { node.textContent = txt; node.style.opacity = 1; }, 180);
+  }
+
+  function finish(){
+    if(finished) return;
+    finished = true;
+    cancelAnimationFrame(raf);
+    paint(1);
+    stat.classList.add('ready');
+    stat.textContent = '准备就绪';
+    stat.style.opacity = 1;
+
+    if(LAUNCHER){
+      setTimeout(() => {
+        stage.classList.add('gone');
+        replay.classList.add('on');
+        replayBtn.style.display = 'none';
+        document.getElementById('waitnote').style.display = 'flex';
+        document.title = 'WB_READY';   // 通知 launcher.ps1：动画已播完，可以收场
+      }, reduced ? 0 : 780);
+      return;
+    }
+
+    if(!reduced){
+      setTimeout(() => {
+        stage.classList.add('gone');
+        setTimeout(() => replay.classList.add('on'), 620);
+      }, 780);
+    } else {
+      stage.classList.add('gone');
+      replay.classList.add('on');
+    }
+  }
+
+  function skip(){
+    if(finished) return;
+    if(LAUNCHER) document.title = 'SKIP_WB';   // 通知 launcher.py 立刻关窗
+    shown = 1;
+    finish();
+  }
+
+  /* ── 启动序列 ── */
+  function boot(){
+    finished = false;
+    shown = 0; startAt = 0; lastStat = '';
+    replay.classList.remove('on');
+    replayBtn.style.display = '';
+    document.getElementById('waitnote').style.display = '';
+    document.title = 'WorkBuddy · 启动中';
+    stage.classList.remove('gone');
+    stat.classList.remove('ready');
+    stat.style.opacity = 1;
+
+    [logo, title, sub, tag, prog, rule].forEach(n => n.classList.remove('on'));
+
+    // 视频
+    video.currentTime = 0;
+    const p = video.play();
+    if(p && p.catch) p.catch(() => { /* 自动播放被拒，保留 poster */ });
+
+    if(reduced){
+      video.classList.add('on');
+      [logo, title, sub, tag, prog, rule].forEach(n => n.classList.add('on'));
+    } else {
+      setTimeout(() => video.classList.add('on'), 120);
+      setTimeout(() => logo.classList.add('on'), 420);
+      setTimeout(() => title.classList.add('on'), 620);
+      setTimeout(() => sub.classList.add('on'), 820);
+      setTimeout(() => tag.classList.add('on'), 960);
+      setTimeout(() => prog.classList.add('on'), 1080);
+      setTimeout(() => rule.classList.add('on'), 1240);
+    }
+    setTimeout(() => fsBtn.classList.add('on'), 1600);
+
+    raf = requestAnimationFrame(tick);
+  }
+
+  video.addEventListener('canplaythrough', () => {});
+  video.addEventListener('loadeddata', () => video.classList.add('on'), { once:true });
+  video.addEventListener('error', () => {
+    // 视频挂了就用 poster 兜底，进度照常走完
+    video.style.display = 'none';
+  });
+
+  /* ── 交互 ── */
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' || e.key === ' ' || e.key === 'Enter'){ e.preventDefault(); skip(); }
+  });
+  // 启动器模式下不响应点击跳过，避免全屏误触
+  stage.addEventListener('click', e => { if(e.target !== fsBtn && !LAUNCHER) skip(); });
+
+  fsBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  });
+
+  replayBtn.addEventListener('click', e => { e.stopPropagation(); boot(); });
+
+  boot();
+})();
+</script>
+</body>
+</html>
